@@ -1,8 +1,6 @@
-require 'active_record/relation/query_methods'
-
-module ActiveRecord
+module PostgresExt::ActiveRecord
   module QueryMethods
-    class WhereChain
+    module WhereChain
       def overlap(opts)
         opts.each do |key, value|
           @scope = @scope.where(arel_table[key].overlap(value))
@@ -67,8 +65,9 @@ module ActiveRecord
       end
     end
 
-    [:with].each do |name|
-      class_eval <<-CODE, __FILE__, __LINE__ + 1
+    def self.prepended(klass)
+      [:with].each do |name|
+        klass.class_eval <<-CODE, __FILE__, __LINE__ + 1
        def #{name}_values                   # def select_values
          @values[:#{name}] || []            #   @values[:select] || []
        end                                  # end
@@ -77,11 +76,11 @@ module ActiveRecord
          raise ImmutableRelation if @loaded #   raise ImmutableRelation if @loaded
          @values[:#{name}] = values         #   @values[:select] = values
        end                                  # end
-      CODE
-    end
+        CODE
+      end
 
-    [:rank].each do |name|
-      class_eval <<-CODE, __FILE__, __LINE__ + 1
+      [:rank].each do |name|
+        klass.class_eval <<-CODE, __FILE__, __LINE__ + 1
         def #{name}_value=(value)            # def readonly_value=(value)
           raise ImmutableRelation if @loaded #   raise ImmutableRelation if @loaded
           @values[:#{name}] = value          #   @values[:readonly] = value
@@ -90,9 +89,9 @@ module ActiveRecord
         def #{name}_value                    # def readonly_value
           @values[:#{name}]                  #   @values[:readonly]
         end                                  # end
-      CODE
+        CODE
+      end
     end
-
     def with(*args)
       check_if_method_has_arguments!('with', args)
       spawn.with!(*args.compact.flatten)
@@ -112,8 +111,8 @@ module ActiveRecord
       self
     end
 
-    def build_arel_with_extensions
-      arel = build_arel_without_extensions
+    def build_arel
+      arel = super
 
       build_with(arel, with_values)
 
@@ -169,7 +168,5 @@ module ActiveRecord
         end
       end
     end
-
-    alias_method_chain :build_arel, :extensions
   end
 end
